@@ -1,8 +1,17 @@
-from fastapi import FastAPI
-from pydantic import BaseModel, EmailStr, Field
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware # 1. 导入 CORS 模块
 
 app = FastAPI()
+
+# 2. 配置跨域支持，允许所有来源访问你的 API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # 生产环境建议填前端的具体域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 list_user=[

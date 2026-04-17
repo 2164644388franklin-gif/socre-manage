@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理系统</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; background-color: #f9fafb; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { margin-top: 0; color: #111; }
+        input { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #2563eb; }
+        button.danger { background-color: #ef4444; }
+        button.danger:hover { background-color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f3f4f6; }
+        .pagination { margin-top: 15px; display: flex; align-items: center; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>用户管理系统</h1>
+
+    <div class="card">
+        <h2>注册新用户</h2>
+        <input type="text" id="username" placeholder="请输入用户名" required>
+        <input type="number" id="score" placeholder="请输入分数" required>
+        <button onclick="registerUser()">注册用户</button>
+    </div>
+
+    <div class="card">
+        <h2>用户列表</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>分数</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="userTableBody">
+                </tbody>
+        </table>
+        
+        <div class="pagination">
+            <button onclick="prevPage()">上一页</button>
+            <span id="pageInfo">第 1 页</span>
+            <button onclick="nextPage()">下一页</button>
+        </div>
+    </div>
+
+    <script>
+        // 假设你的 FastAPI 运行在默认的 8000 端口
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        
+        let currentPage = 1;
+        const pageSize = 10;
+
+        // 1. 获取并渲染用户列表
+        async function fetchUsers() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/users?page=${currentPage}&page_size=${pageSize}`);
+                const users = await response.json();
+                
+                const tbody = document.getElementById('userTableBody');
+                tbody.innerHTML = ''; // 清空当前表格
+                
+                users.forEach(user => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${user.user_id}</td>
+                        <td>${user.username}</td>
+                        <td>${user.score}</td>
+                        <td>
+                            <button onclick="updateScore(${user.user_id}, ${user.score})">修改分数</button>
+                            <button class="danger" onclick="deleteUser(${user.user_id})">删除</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('pageInfo').innerText = `第 ${currentPage} 页`;
+            } catch (error) {
+                console.error("获取数据失败，请确保后端服务已启动并配置了 CORS:", error);
+            }
+        }
+
+        // 2. 注册新用户
+        async function registerUser() {
+            const username = document.getElementById('username').value;
+            const score = document.getElementById('score').value;
+
+            if (!username || !score) {
+                alert("请填写完整信息！");
+                return;
+            }
+
+            const payload = {
+                user_id: 0, // Pydantic 模型需要这个字段，但你的后端逻辑用 max() 覆盖了它，传 0 即可
+                username: username,
+                score: parseInt(score)
+            };
+
+            await fetch(`${API_BASE_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            // 清空输入框并刷新列表
+            document.getElementById('username').value = '';
+            document.getElementById('score').value = '';
+            fetchUsers();
+        }
+
+        // 3. 删除用户
+        async function deleteUser(userId) {
+            if (confirm("确定要删除该用户吗？")) {
+                await fetch(`${API_BASE_URL}/user/${userId}`, {
+                    method: 'DELETE'
+                });
+                fetchUsers();
+            }
+        }
+
+        // 4. 修改分数
+        async function updateScore(userId, currentScore) {
+            const newScoreStr = prompt(`请输入用户 ID ${userId} 的新分数：`, currentScore);
+            
+            if (newScoreStr !== null && newScoreStr.trim() !== '') {
+                const newScore = parseInt(newScoreStr);
+                await fetch(`${API_BASE_URL}/user/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ score: newScore })
+                });
+                fetchUsers();
+            }
+        }
+
+        // 分页逻辑
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchUsers();
+            }
+        }
+
+        function nextPage() {
+            // 这里为了简单没有判断最大页数，你可以根据返回的数据量来禁用按钮
+            currentPage++;
+            fetchUsers();
+        }
+
+        // 页面加载完毕后立即请求一次数据
+        window.onload = fetchUsers;
+    </script>
+</body>
+</html>
